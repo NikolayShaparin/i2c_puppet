@@ -45,20 +45,7 @@ void reg_process_packet(uint8_t in_reg, uint8_t in_data, uint8_t *out_buffer, ui
 	// common R/W registers
 	case REG_ID_CFG:
 	case REG_ID_INT:
-		const struct fifo_item item = fifo_dequeue();
 
-		/* If we encounter the AltGr sentinel, pass it through so the I2C
-		   master can interpret it as Right-Alt + 'q'. USB handling already
-		   translates the sentinel into the proper HID report. */
-		if ((uint8_t)item.key == (uint8_t)KEY_ALTGR_Q) {
-			out_buffer[0] = (uint8_t)item.state;
-			out_buffer[1] = (uint8_t)KEY_ALTGR_Q;
-		} else {
-			out_buffer[0] = (uint8_t)item.state;
-			out_buffer[1] = (uint8_t)item.key;
-		}
-
-		*out_len = sizeof(uint8_t) * 2;
 	case REG_ID_DEB:
 	case REG_ID_FRQ:
 	case REG_ID_BKL:
@@ -151,6 +138,12 @@ void reg_process_packet(uint8_t in_reg, uint8_t in_data, uint8_t *out_buffer, ui
 
 	case REG_ID_FIF:
 	{
+		/* Return the next FIFO item to the I2C master. Sentinels should
+		   not appear in the FIFO because `keyboard_inject_event` expands
+		   them into explicit modifier+key events for I2C consumers. If a
+		   sentinel does somehow reach the FIFO, it will be returned as-is
+		   (but that is discouraged).
+		*/
 		const struct fifo_item item = fifo_dequeue();
 
 		out_buffer[0] = (uint8_t)item.state;

@@ -43,7 +43,7 @@ static const struct entry kbd_entries[][NUM_OF_COLS] =
 	{ { KEY_BTN_LEFT1 },   { '~', '0' },              { 'F', '6' },              { .mod = KEY_MOD_ID_SHL }, { 'K', '|'  }, { 'J', '<'  } },
 	{ { },                 { ' ', '\t' },             { 'C', '9' },              { 'Z', '7' },              { 'M', '.'  },  { 'N', ','  } },
 	{ { KEY_BTN_LEFT2 },   { .mod = KEY_MOD_ID_SYM }, { 'T', '*' },              { 'D', '5' },              { 'I', '/'  },  { 'Y', '('  } },
-	{ { KEY_BTN_RIGHT1 },  { .mod = KEY_MOD_ID_ALT }, { 'V', '_' },              { 'X', '8' },              { '€', '`'  },  { 'B', '!'  } },
+	{ { KEY_BTN_RIGHT1 },  { .mod = KEY_MOD_ID_ALT }, { 'V', '_' },              { 'X', '8' },              { KEY_EURO, '`'  },  { 'B', '!'  } },
 	{ { },                 { 'A', '}' },              { .mod = KEY_MOD_ID_SHR }, { 'P', '@' },              { '\b' },       { '\n', '|' } },
 };
 
@@ -372,6 +372,63 @@ void keyboard_inject_event(char key, enum key_state state)
 
 			if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
 				fifo_enqueue_force(item);
+		}
+	}
+
+	/* Special expansion for Euro sentinel: Right-Alt + 'e' sequence for I2C */
+	if ((uint8_t)key == (uint8_t)KEY_EURO) {
+		struct fifo_item item;
+
+		if (state == KEY_STATE_PRESSED) {
+			item.key = KEY_MOD_ALT;
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+
+			item.key = 'e';
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_HOLD) {
+			item.key = 'e';
+			item.state = KEY_STATE_HOLD;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_RELEASED) {
+			item.key = 'e';
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+
+			item.key = KEY_MOD_ALT;
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
 		}
 	}
 

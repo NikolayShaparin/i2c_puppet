@@ -66,6 +66,24 @@ static void key_cb(char key, enum key_state state)
 		return;
 	}
 
+	// Special-case: send Right-Alt + 'e' for the Euro mapping on QWERTZ
+	if (key == KEY_EURO) {
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+			uint8_t modifier   = 0;
+
+			if (state == KEY_STATE_PRESSED) {
+				modifier = KEYBOARD_MODIFIER_RIGHTALT;
+				keycode[0] = HID_KEY_E;
+			}
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, modifier, keycode);
+		}
+
+		return;
+	}
+
 	// Don't send mods over USB
 	if ((key == KEY_MOD_SHL) ||
 		(key == KEY_MOD_SHR) ||

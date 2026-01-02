@@ -43,6 +43,8 @@ enum key_mod
 
 // Special sentinel to request Right-Alt + 'q' (AltGr+q) sequence
 #define KEY_ALTGR_Q		0xF0
+// Special sentinel to request Right-Alt + 'e' (AltGr+e) sequence for '€'
+#define KEY_EURO		0xF1
 
 struct key_callback
 {
