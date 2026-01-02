@@ -20,6 +20,7 @@ static struct
 
 	uint8_t write_buffer[2];
 	uint8_t write_len;
+	uint8_t modifier_state;
 } self;
 
 // TODO: What about Ctrl?
@@ -84,12 +85,51 @@ static void key_cb(char key, enum key_state state)
 		return;
 	}
 
-	// Don't send mods over USB
-	if ((key == KEY_MOD_SHL) ||
-		(key == KEY_MOD_SHR) ||
-		(key == KEY_MOD_ALT) ||
-		(key == KEY_MOD_SYM))
+	// Handle modifier keys and special buttons that should send modifiers
+	if (key == KEY_BTN_LEFT1) {
+		// Map LEFT1 button to Ctrl
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+			if (state == KEY_STATE_PRESSED) {
+				self.modifier_state |= KEYBOARD_MODIFIER_LEFTCTRL;
+			} else if (state == KEY_STATE_RELEASED) {
+				self.modifier_state &= ~KEYBOARD_MODIFIER_LEFTCTRL;
+			}
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, self.modifier_state, keycode);
+		}
+
 		return;
+	}
+
+	if (key == KEY_MOD_SHL || key == KEY_MOD_SHR || key == KEY_MOD_ALT) {
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+
+			if (key == KEY_MOD_SHL) {
+				if (state == KEY_STATE_PRESSED)
+					self.modifier_state |= KEYBOARD_MODIFIER_LEFTSHIFT;
+				else if (state == KEY_STATE_RELEASED)
+					self.modifier_state &= ~KEYBOARD_MODIFIER_LEFTSHIFT;
+			} else if (key == KEY_MOD_SHR) {
+				if (state == KEY_STATE_PRESSED)
+					self.modifier_state |= KEYBOARD_MODIFIER_RIGHTSHIFT;
+				else if (state == KEY_STATE_RELEASED)
+					self.modifier_state &= ~KEYBOARD_MODIFIER_RIGHTSHIFT;
+			} else if (key == KEY_MOD_ALT) {
+				if (state == KEY_STATE_PRESSED)
+					self.modifier_state |= KEYBOARD_MODIFIER_LEFTALT;
+				else if (state == KEY_STATE_RELEASED)
+					self.modifier_state &= ~KEYBOARD_MODIFIER_LEFTALT;
+			}
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, self.modifier_state, keycode);
+		}
+
+		return;
+	}
 
 	if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
 		uint8_t conv_table[128][2]		= { HID_ASCII_TO_KEYCODE };
@@ -100,11 +140,11 @@ static void key_cb(char key, enum key_state state)
 		conv_table[KEY_JOY_RIGHT][1]	= HID_KEY_ARROW_RIGHT;
 
 		uint8_t keycode[6] = { 0 };
-		uint8_t modifier   = 0;
+		uint8_t modifier   = self.modifier_state;
 
 		if (state == KEY_STATE_PRESSED) {
 			if (conv_table[(int)key][0])
-				modifier = KEYBOARD_MODIFIER_LEFTSHIFT;
+				modifier |= KEYBOARD_MODIFIER_LEFTSHIFT;
 
 			keycode[0] = conv_table[(int)key][1];
 		}
@@ -201,5 +241,6 @@ void usb_init(void)
 	irq_set_enabled(USB_LOW_PRIORITY_IRQ, true);
 
 	mutex_init(&self.mutex);
+	self.modifier_state = 0;
 	add_alarm_in_us(USB_TASK_INTERVAL_US, timer_task, NULL, true);
 }
