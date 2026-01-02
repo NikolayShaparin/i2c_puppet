@@ -117,7 +117,14 @@ static void transition_to(struct list_item * const p_item, const enum key_state 
 					const bool is_button = (key <= KEY_BTN_RIGHT1) || ((key >= KEY_BTN_LEFT2) && (key <= KEY_BTN_RIGHT2));
 
 					if (alt && !is_button) {
-						key = p_entry->alt;
+						// On QWERTZ the '@' is produced with Right-Alt + 'q'.
+						// Emit a sentinel so USB/I2C handlers can translate it into
+						// Right-Alt + 'q' instead of Shift+2.
+						if ((p_entry->alt == '@') && (p_entry->chr == 'P')) {
+							key = KEY_ALTGR_Q;
+						} else {
+							key = p_entry->alt;
+						}
 					} else if (!shift && (key >= 'A' && key <= 'Z')) {
 						key = (key + ' ');
 					}
@@ -300,13 +307,72 @@ static int64_t timer_task(alarm_id_t id, void *user_data)
 
 void keyboard_inject_event(char key, enum key_state state)
 {
-	const struct fifo_item item = { key, state };
-	if (!fifo_enqueue(item)) {
-		if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
-			reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+	/* Special expansion for AltGr sentinel: enqueue explicit modifier + key
+	   events for I2C consumers, but still invoke callbacks with the original
+	   sentinel so USB handling can translate it into a HID Right-Alt + 'q'. */
+	if ((uint8_t)key == (uint8_t)KEY_ALTGR_Q) {
+		struct fifo_item item;
 
-		if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
-			fifo_enqueue_force(item);
+		if (state == KEY_STATE_PRESSED) {
+			item.key = KEY_MOD_ALT;
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+
+			item.key = 'q';
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_HOLD) {
+			item.key = 'q';
+			item.state = KEY_STATE_HOLD;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_RELEASED) {
+			item.key = 'q';
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+
+			item.key = KEY_MOD_ALT;
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		}
+	} else {
+		const struct fifo_item item = { key, state };
+		if (!fifo_enqueue(item)) {
+			if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+				reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+			if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+				fifo_enqueue_force(item);
+		}
 	}
 
 	struct key_callback *cb = self.key_callbacks;
