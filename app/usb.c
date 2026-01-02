@@ -85,9 +85,26 @@ static void key_cb(char key, enum key_state state)
 		return;
 	}
 
-	// Handle modifier keys and special buttons that should send modifiers
+	// Handle special physical buttons: LEFT1 -> Left-Alt, LEFT2 -> Left-Ctrl
 	if (key == KEY_BTN_LEFT1) {
-		// Map LEFT1 button to Ctrl
+		// Map LEFT1 button to Left-Alt
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+			if (state == KEY_STATE_PRESSED) {
+				self.modifier_state |= KEYBOARD_MODIFIER_LEFTALT;
+			} else if (state == KEY_STATE_RELEASED) {
+				self.modifier_state &= ~KEYBOARD_MODIFIER_LEFTALT;
+			}
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, self.modifier_state, keycode);
+		}
+
+		return;
+	}
+
+	if (key == KEY_BTN_LEFT2) {
+		// Map LEFT2 button to Left-Ctrl
 		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
 			uint8_t keycode[6] = { 0 };
 			if (state == KEY_STATE_PRESSED) {
@@ -103,6 +120,7 @@ static void key_cb(char key, enum key_state state)
 		return;
 	}
 
+	// Handle modifier sentinel keys (SHIFT/ALT/CTRL)
 	if (key == KEY_MOD_SHL || key == KEY_MOD_SHR || key == KEY_MOD_ALT) {
 		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
 			uint8_t keycode[6] = { 0 };
@@ -126,6 +144,40 @@ static void key_cb(char key, enum key_state state)
 
 			if (state != KEY_STATE_HOLD)
 				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, self.modifier_state, keycode);
+		}
+
+		return;
+	}
+
+	// Special-case: KEY_BTN_RIGHT1 -> send Alt+Left (common "Back" navigation)
+	if (key == KEY_BTN_RIGHT1) {
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+			uint8_t modifier   = 0;
+
+			if (state == KEY_STATE_PRESSED) {
+				modifier = KEYBOARD_MODIFIER_LEFTALT;
+				keycode[0] = HID_KEY_ARROW_LEFT;
+			}
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, modifier, keycode);
+		}
+
+		return;
+	}
+
+	// Special-case: KEY_BTN_RIGHT2 -> Escape
+	if (key == KEY_BTN_RIGHT2) {
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+			uint8_t modifier   = 0;
+
+			if (state == KEY_STATE_PRESSED)
+				keycode[0] = HID_KEY_ESCAPE;
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, modifier, keycode);
 		}
 
 		return;
