@@ -183,6 +183,24 @@ static void key_cb(char key, enum key_state state)
 		return;
 	}
 
+	// Special-case: map physical key that produces '~' to the Left-GUI (Windows) modifier
+	if (key == '~') {
+		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+			uint8_t keycode[6] = { 0 };
+
+			if (state == KEY_STATE_PRESSED) {
+				self.modifier_state |= KEYBOARD_MODIFIER_LEFTGUI;
+			} else if (state == KEY_STATE_RELEASED) {
+				self.modifier_state &= ~KEYBOARD_MODIFIER_LEFTGUI;
+			}
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, self.modifier_state, keycode);
+		}
+
+		return;
+	}
+
 	if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
 		uint8_t conv_table[128][2]		= { HID_ASCII_TO_KEYCODE };
 		conv_table['\n'][1]				= HID_KEY_ENTER; // Fixup: Enter instead of Return
