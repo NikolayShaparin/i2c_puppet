@@ -128,6 +128,9 @@ static void transition_to(struct list_item * const p_item, const enum key_state 
 						// Right-Alt + 'q' instead of Shift+2.
 						if ((p_entry->alt == '@') && (p_entry->chr == 'P')) {
 							key = KEY_ALTGR_Q;
+						} else if (p_entry->chr == '\b') {
+							/* Backspace with Alt/Sym should produce Delete */
+							key = 0x7F; /* ASCII DEL */
 						} else {
 							key = p_entry->alt;
 						}

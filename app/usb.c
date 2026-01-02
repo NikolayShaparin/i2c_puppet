@@ -202,6 +202,20 @@ static void key_cb(char key, enum key_state state)
 	}
 
 	if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
+		// If Backspace is pressed while SYM or ALT is active on the keyboard,
+		// emit a Delete key instead (as a modifier-layer behavior).
+		if ((key == '\b') && (keyboard_is_mod_on(KEY_MOD_ID_SYM) || keyboard_is_mod_on(KEY_MOD_ID_ALT))) {
+			uint8_t keycode[6] = { 0 };
+
+			if (state == KEY_STATE_PRESSED)
+				keycode[0] = HID_KEY_DELETE;
+
+			if (state != KEY_STATE_HOLD)
+				tud_hid_n_keyboard_report(USB_ITF_KEYBOARD, 0, self.modifier_state, keycode);
+
+			return;
+		}
+
 		uint8_t conv_table[128][2]		= { HID_ASCII_TO_KEYCODE };
 		conv_table['\n'][1]				= HID_KEY_ENTER; // Fixup: Enter instead of Return
 		conv_table[KEY_JOY_UP][1]		= HID_KEY_ARROW_UP;
