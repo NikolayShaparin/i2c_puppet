@@ -40,6 +40,7 @@ enum key_mod
 #define KEY_MOD_SHL		0x1B // Left Shift
 #define KEY_MOD_SHR		0x1C // Right Shift
 #define KEY_MOD_SYM		0x1D
+#define KEY_MOD_GUI		0x1E
 
 // Special sentinel to request Right-Alt + 'q' (AltGr+q) sequence
 #define KEY_ALTGR_Q		0xF0

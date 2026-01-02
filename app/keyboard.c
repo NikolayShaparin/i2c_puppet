@@ -128,10 +128,13 @@ static void transition_to(struct list_item * const p_item, const enum key_state 
 						// Right-Alt + 'q' instead of Shift+2.
 						if ((p_entry->alt == '@') && (p_entry->chr == 'P')) {
 							key = KEY_ALTGR_Q;
-						} else if (p_entry->chr == '\b') {
+							} else if (p_entry->chr == '\b') {
 							/* Backspace with Alt/Sym should produce Delete */
 							key = 0x7F; /* ASCII DEL */
-						} else {
+							} else if (p_entry->chr == '~') {
+								/* Tilde key should act as Left-GUI for host and I2C */
+								key = KEY_MOD_GUI;
+							} else {
 							key = p_entry->alt;
 						}
 					} else if (!shift && (key >= 'A' && key <= 'Z')) {
@@ -316,10 +319,10 @@ static int64_t timer_task(alarm_id_t id, void *user_data)
 
 void keyboard_inject_event(char key, enum key_state state)
 {
-	/* Special expansion for AltGr sentinel: enqueue explicit modifier + key
-	   events for I2C consumers, but still invoke callbacks with the original
-	   sentinel so USB handling can translate it into a HID Right-Alt + 'q'. */
-	if ((uint8_t)key == (uint8_t)KEY_ALTGR_Q) {
+	 /* Special expansion for AltGr sentinel: enqueue explicit modifier + key
+		 events for I2C consumers, but still invoke callbacks with the original
+		 sentinel so USB handling can translate it into a HID Right-Alt + 'q'. */
+	 if ((uint8_t)key == (uint8_t)KEY_ALTGR_Q) {
 		struct fifo_item item;
 
 		if (state == KEY_STATE_PRESSED) {
@@ -381,6 +384,120 @@ void keyboard_inject_event(char key, enum key_state state)
 
 			if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
 				fifo_enqueue_force(item);
+		}
+	}
+
+	/* Expand GUI sentinel into explicit modifier events for I2C consumers */
+	if ((uint8_t)key == (uint8_t)KEY_MOD_GUI) {
+		struct fifo_item item;
+
+		if (state == KEY_STATE_PRESSED) {
+			item.key = KEY_MOD_GUI;
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_RELEASED) {
+			item.key = KEY_MOD_GUI;
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		}
+		/* still fall through to callbacks */
+	}
+
+	/* Expand physical Right1 into Alt + Left (back) sequence for I2C */
+	if (key == KEY_BTN_RIGHT1) {
+		struct fifo_item item;
+
+		if (state == KEY_STATE_PRESSED) {
+			item.key = KEY_MOD_ALT;
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+
+			item.key = KEY_JOY_LEFT;
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_HOLD) {
+			item.key = KEY_JOY_LEFT;
+			item.state = KEY_STATE_HOLD;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_RELEASED) {
+			item.key = KEY_JOY_LEFT;
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+
+			item.key = KEY_MOD_ALT;
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		}
+	}
+
+	/* Expand Right2 into Escape for I2C */
+	if ((uint8_t)key == (uint8_t)KEY_BTN_RIGHT2) {
+		struct fifo_item item;
+
+		if (state == KEY_STATE_PRESSED) {
+			item.key = '\x1B';
+			item.state = KEY_STATE_PRESSED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_HOLD) {
+			item.key = '\x1B';
+			item.state = KEY_STATE_HOLD;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
+		} else if (state == KEY_STATE_RELEASED) {
+			item.key = '\x1B';
+			item.state = KEY_STATE_RELEASED;
+			if (!fifo_enqueue(item)) {
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_INT))
+					reg_set_bit(REG_ID_INT, INT_OVERFLOW);
+				if (reg_is_bit_set(REG_ID_CFG, CFG_OVERFLOW_ON))
+					fifo_enqueue_force(item);
+			}
 		}
 	}
 

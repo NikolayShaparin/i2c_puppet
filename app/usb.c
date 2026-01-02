@@ -183,8 +183,8 @@ static void key_cb(char key, enum key_state state)
 		return;
 	}
 
-	// Special-case: map physical key that produces '~' to the Left-GUI (Windows) modifier
-	if (key == '~') {
+	// Special-case: map physical key that produces '~' or GUI sentinel to the Left-GUI (Windows) modifier
+	if (key == '~' || key == KEY_MOD_GUI) {
 		if (tud_hid_n_ready(USB_ITF_KEYBOARD) && reg_is_bit_set(REG_ID_CF2, CF2_USB_KEYB_ON)) {
 			uint8_t keycode[6] = { 0 };
 
